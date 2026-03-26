@@ -120,9 +120,13 @@
         <select id="poseSelect">
             <option value="standing">Standing (Neutral)</option>
             <option value="walking">Walking</option>
-            <option value="sitting">Sitting</option>
             <option value="running">Running</option>
+            <option value="sitting">Sitting</option>
+            <option value="crouching">Crouching</option>
+            <option value="jumping">Jumping</option>
             <option value="action">Hero Landing</option>
+            <option value="flying">Flying / Floating</option>
+            <option value="sleeping">Lying Down</option>
         </select>
 
         <div class="ai-section">
@@ -132,8 +136,9 @@
         </div>
 
         <div class="ai-section" style="background: rgba(255, 255, 255, 0.03); border-color: rgba(255,255,255,0.1);">
-            <label>✨ Analyze My Sketch</label>
-            <p style="font-size: 11px; color: #888; margin-bottom: 8px;">Upload an image of your drawing to get feedback based on the model.</p>
+            <label>✨ Tools & Analysis</label>
+            <button class="secondary" id="improveLightingBtn">Improve Lighting ✨</button>
+            <div style="height: 8px;"></div>
             <button class="secondary" onclick="document.getElementById('fileInput').click()">Upload Sketch ✨</button>
             <input type="file" id="fileInput" class="hidden-input" accept="image/*">
         </div>
@@ -154,6 +159,7 @@
         let isDragging = false;
         let previousMousePosition = { x: 0, y: 0 };
         const limbs = {};
+        let rimLight, mainLight;
 
         // Anatomical constraints
         const constraints = {
@@ -244,6 +250,22 @@
             showLoading(false);
         }
 
+        async function handleImproveLighting() {
+            showLoading(true, "Optimizing lighting for current pose...");
+            const system = "You are a lighting designer. Given a pose description, suggest a light color in hex (e.g. #ffaa00) and position [x, y, z] to make it look dramatic. Return JSON: { color, position: [x, y, z] }";
+            const currentPose = document.getElementById('aiPrompt').value || "neutral pose";
+            
+            try {
+                const data = await callGeminiText(`Pose: ${currentPose}`, system);
+                rimLight.color.set(data.color);
+                rimLight.position.set(data.position[0], data.position[1], data.position[2]);
+                showFeedback(`Lighting improved with ${data.color} hues.`);
+            } catch (e) {
+                showFeedback("Could not optimize lighting at this moment.");
+            }
+            showLoading(false);
+        }
+
         async function handleFileUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -289,12 +311,12 @@
             const ambient = new THREE.AmbientLight(0xffffff, 0.2);
             scene.add(ambient);
 
-            const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
             mainLight.position.set(5, 10, 5);
             mainLight.castShadow = true;
             scene.add(mainLight);
 
-            const rimLight = new THREE.SpotLight(0x00acee, 1.5);
+            rimLight = new THREE.SpotLight(0x00acee, 1.5);
             rimLight.position.set(-5, 5, -5);
             scene.add(rimLight);
 
@@ -309,6 +331,7 @@
             setupControls();
             
             document.getElementById('generateBtn').onclick = handleGenerate;
+            document.getElementById('improveLightingBtn').onclick = handleImproveLighting;
             document.getElementById('fileInput').onchange = handleFileUpload;
             document.getElementById('poseSelect').onchange = (e) => applyStandardPose(e.target.value);
 
@@ -393,9 +416,13 @@
             const poses = {
                 standing: {},
                 walking: { leftHip: {x: -0.5}, rightHip: {x: 0.5}, rightKnee: {x: 0.5}, leftShoulder: {x: 0.5} },
-                sitting: { chest: {posY: 0.9}, leftHip: {x: -1.5}, rightHip: {x: -1.5}, leftKnee: {x: 1.5}, rightKnee: {x: 1.5} },
                 running: { chest: {x: 0.4}, leftHip: {x: -1.0}, rightHip: {x: 0.8}, rightKnee: {x: 1.2} },
-                action: { chest: {posY: 0.6, x: 0.8}, leftHip: {x: -1.2, y: 0.5}, rightHip: {x: -0.5, y: -0.5}, rightKnee: {x: 2.0}, leftShoulder: {x: -0.5, z: -1.0} }
+                sitting: { chest: {posY: 0.9}, leftHip: {x: -1.5}, rightHip: {x: -1.5}, leftKnee: {x: 1.5}, rightKnee: {x: 1.5} },
+                crouching: { chest: {posY: 0.8}, leftHip: {x: -2.0}, rightHip: {x: -2.0}, leftKnee: {x: 2.2}, rightKnee: {x: 2.2} },
+                jumping: { chest: {posY: 2.0}, leftHip: {x: -0.8}, rightHip: {x: -0.8}, leftKnee: {x: 1.5}, rightKnee: {x: 1.5}, leftShoulder: {x: 2.8}, rightShoulder: {x: 2.8} },
+                action: { chest: {posY: 0.6, x: 0.8}, leftHip: {x: -1.2, y: 0.5}, rightHip: {x: -0.5, y: -0.5}, rightKnee: {x: 2.0}, leftShoulder: {x: -0.5, z: -1.0} },
+                flying: { chest: {posY: 2.2, x: 1.2}, leftHip: {x: 0.5}, rightHip: {x: 0.3}, leftShoulder: {x: 3.0, z: -0.5}, rightShoulder: {x: 3.0, z: 0.5} },
+                sleeping: { chest: {posY: 0.3, z: 1.5}, head: {x: -0.5}, leftHip: {x: -0.3}, rightHip: {x: -0.2} }
             };
             applyPose(poses[name] || {});
         }
